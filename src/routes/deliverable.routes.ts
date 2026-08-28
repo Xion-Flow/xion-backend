@@ -25,6 +25,9 @@ router.get('/my-work', authenticate, async (req: AuthenticatedRequest, res: Resp
 
     const whereClause: any = {
       assignedToId: userId,
+      projectPhase: {
+        status: 'IN_PROGRESS',
+      },
     };
 
     if (status && status !== 'ALL') {
