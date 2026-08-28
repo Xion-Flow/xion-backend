@@ -108,9 +108,9 @@ export class WorkflowEngine {
           },
         });
 
-        for (const dt of pt.deliverables) {
-          await tx.projectDeliverable.create({
-            data: {
+        if (pt.deliverables.length > 0) {
+          await tx.projectDeliverable.createMany({
+            data: pt.deliverables.map((dt) => ({
               projectPhaseId: projectPhase.id,
               deliverableTemplateId: dt.id,
               name: dt.name,
@@ -118,14 +118,13 @@ export class WorkflowEngine {
               isRequired: dt.isRequired,
               order: dt.order,
               status: DeliverableStatus.NOT_STARTED,
-              // Pre-assign to creator for personal projects
               assignedToId: type === 'PERSONAL' ? createdById : null,
-            },
+            })),
           });
         }
       }
 
       return project;
-    });
+    }, { timeout: 20000 });
   }
 }

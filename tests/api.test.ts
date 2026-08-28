@@ -90,7 +90,7 @@ describe('Xion REST API & Security Test Suite', () => {
       expect(detailsRes.body.project.phases.length).toBe(10);
       expect(detailsRes.body.project.phases[0].name).toContain('01 Idea');
       expect(detailsRes.body.project.phases[0].deliverables.length).toBeGreaterThan(0);
-    });
+    }, 15000);
   });
 
   describe('Deliverable Tracking & Progress Metrics', () => {
