@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("MEMBER") // ADMIN | MEMBER
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdProjects      Project[]            @relation("ProjectCreator")
+  projectMemberships   ProjectMember[]
+  assignedDeliverables ProjectDeliverable[]
+
+  invitesSent     ProjectInvite[] @relation("InviteSender")
+  invitesReceived ProjectInvite[] @relation("InviteRecipient")
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  techStack   String?
+  githubUrl   String?
+  demoUrl     String?
+  targetDate  DateTime?
+  status      String    @default("IN_PROGRESS") // PLANNING | IN_PROGRESS | COMPLETED | ON_HOLD | ARCHIVED
+  type        String    @default("TEAM") // PERSONAL | TEAM
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdBy User            @relation("ProjectCreator", fields: [createdById], references: [id])
+  members   ProjectMember[]
+  phases    ProjectPhase[]
+  invites   ProjectInvite[]
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  role      String   @default("MEMBER") // MEMBER
+  joinedAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+model ProjectInvite {
+  id        String   @id @default(cuid())
+  projectId String
+  inviterId String
+  inviteeId String
+  status    String   @default("PENDING") // PENDING | ACCEPTED | DECLINED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inviter User    @relation("InviteSender", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee User    @relation("InviteRecipient", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, inviteeId])
+  @@map("project_invites")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("PROJECT_INVITE") // PROJECT_INVITE | SYSTEM
+  metadata  String? // JSON string
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model PhaseTemplate {
+  id             String                @id @default(cuid())
+  name           String
+  description    String
+  objective      String
+  activitiesJson String                @default("[]")
+  order          Int
+  deliverables   DeliverableTemplate[]
+  projectPhases  ProjectPhase[]
+
+  @@map("phase_templates")
+}
+
+model DeliverableTemplate {
+  id                  String               @id @default(cuid())
+  phaseTemplateId     String
+  name                String
+  description         String
+  isRequired          Boolean              @default(true)
+  order               Int
+  phaseTemplate       PhaseTemplate        @relation(fields: [phaseTemplateId], references: [id], onDelete: Cascade)
+  projectDeliverables ProjectDeliverable[]
+
+  @@map("deliverable_templates")
+}
+
+model ProjectPhase {
+  id              String   @id @default(cuid())
+  projectId       String
+  phaseTemplateId String?
+  name            String
+  description     String
+  objective       String?
+  order           Int
+  status          String   @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | COMPLETED
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project       Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phaseTemplate PhaseTemplate?       @relation(fields: [phaseTemplateId], references: [id], onDelete: SetNull)
+  deliverables  ProjectDeliverable[]
+
+  @@map("project_phases")
+}
+
+model ProjectDeliverable {
+  id                    String    @id @default(cuid())
+  projectPhaseId        String
+  deliverableTemplateId String?
+  name                  String
+  description           String
+  isRequired            Boolean   @default(true)
+  order                 Int       @default(1)
+  status                String    @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | COMPLETED | BLOCKED
+  assignedToId          String?
+  dueDate               DateTime?
+  documentUrl           String?
+  notes                 String?
+  completedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  projectPhase        ProjectPhase         @relation(fields: [projectPhaseId], references: [id], onDelete: Cascade)
+  deliverableTemplate DeliverableTemplate? @relation(fields: [deliverableTemplateId], references: [id], onDelete: SetNull)
+  assignedTo          User?                @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@map("project_deliverables")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String // e.g. PROJECT_CREATE | PROJECT_DELETE | PROJECT_ARCHIVE | MEMBER_LEAVE | AUTH_LOGIN | AUTH_LOGIN_FAIL
+  details   String? // JSON or text description
+  userId    String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
