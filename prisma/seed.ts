@@ -282,7 +282,7 @@ async function main() {
     data: {
       name: 'Xion Project Tracker',
       description: 'Structured software-development project tracker designed for personal and team engineering projects.',
-      techStack: 'React, Node.js, Express, TypeScript, Prisma, SQLite',
+      techStack: 'Frontend -> React.js, TypeScript, Vite\nBackend -> Node.js, Express, Prisma\nDatabase -> PostgreSQL\nDevOps -> Docker, Render, Vercel',
       status: ProjectStatus.IN_PROGRESS,
       createdById: leader.id,
     },
