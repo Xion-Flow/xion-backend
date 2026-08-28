@@ -214,6 +214,8 @@ router.delete('/:id', authenticate, requireRole(Role.ADMIN), async (req: Authent
       return res.status(404).json({ error: 'User account not found.' });
     }
 
+    // Clean up projects created by this user
+    await prisma.project.deleteMany({ where: { createdById: id } });
     await prisma.user.delete({ where: { id } });
 
     res.json({ message: `User account '${targetUser.name}' (@${targetUser.username}) deleted successfully.` });
