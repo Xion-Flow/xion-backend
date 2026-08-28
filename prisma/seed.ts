@@ -25,24 +25,16 @@ const DeliverableStatus = {
 };
 
 async function main() {
-  console.log('🌱 Starting Xion database seeding...');
-
-  await prisma.notification.deleteMany();
-  await prisma.projectInvite.deleteMany();
-  await prisma.projectDeliverable.deleteMany();
-  await prisma.projectPhase.deleteMany();
-  await prisma.projectMember.deleteMany();
-  await prisma.project.deleteMany();
-  await prisma.deliverableTemplate.deleteMany();
-  await prisma.phaseTemplate.deleteMany();
-  await prisma.user.deleteMany();
+  console.log('🌱 Starting Xion database seeding (Safe non-destructive upsert)...');
 
   const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 10);
   const leaderPasswordHash = await bcrypt.hash('LeaderPassword123!', 10);
   const memberPasswordHash = await bcrypt.hash('MemberPassword123!', 10);
 
-  const admin = await prisma.user.create({
-    data: {
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@xion.in' },
+    update: {},
+    create: {
       email: 'admin@xion.in',
       username: 'admin_xion',
       name: 'System Admin',
@@ -52,8 +44,10 @@ async function main() {
     },
   });
 
-  const leader = await prisma.user.create({
-    data: {
+  const leader = await prisma.user.upsert({
+    where: { email: 'ilakkiyanj@xion.in' },
+    update: {},
+    create: {
       email: 'ilakkiyanj@xion.in',
       username: 'ilakkiyan_lead',
       name: 'Ilakkiyan J (Lead Architect)',
@@ -63,8 +57,10 @@ async function main() {
     },
   });
 
-  const userDemo = await prisma.user.create({
-    data: {
+  const userDemo = await prisma.user.upsert({
+    where: { email: 'user-deomo@xion.in' },
+    update: {},
+    create: {
       email: 'user-deomo@xion.in',
       username: 'user_demo',
       name: 'Demo User',
@@ -74,7 +70,7 @@ async function main() {
     },
   });
 
-  console.log('✅ Users seeded: admin@xion.in, ilakkiyanj@xion.in, user-deomo@xion.in.');
+  console.log('✅ Base seed users verified without erasing existing data.');
 
   const phasesData = [
     {
@@ -252,115 +248,123 @@ async function main() {
     },
   ];
 
-  for (const p of phasesData) {
-    const createdPhase = await prisma.phaseTemplate.create({
-      data: {
-        order: p.order,
-        name: p.name,
-        description: p.description,
-        objective: p.objective,
-        activitiesJson: JSON.stringify(p.activities),
-      },
-    });
-
-    for (const d of p.deliverables) {
-      await prisma.deliverableTemplate.create({
+  const existingTemplateCount = await prisma.phaseTemplate.count();
+  if (existingTemplateCount === 0) {
+    for (const p of phasesData) {
+      const createdPhase = await prisma.phaseTemplate.create({
         data: {
-          phaseTemplateId: createdPhase.id,
-          name: d.name,
-          description: d.description,
-          isRequired: d.isRequired,
-          order: d.order,
+          order: p.order,
+          name: p.name,
+          description: p.description,
+          objective: p.objective,
+          activitiesJson: JSON.stringify(p.activities),
         },
       });
+
+      for (const d of p.deliverables) {
+        await prisma.deliverableTemplate.create({
+          data: {
+            phaseTemplateId: createdPhase.id,
+            name: d.name,
+            description: d.description,
+            isRequired: d.isRequired,
+            order: d.order,
+          },
+        });
+      }
     }
+    console.log('✅ 10 Engineering Phase Templates & Deliverables seeded successfully.');
   }
 
-  console.log('✅ 10 Engineering Phase Templates & Deliverables seeded successfully.');
-
-  const project = await prisma.project.create({
-    data: {
-      name: 'Xion Project Tracker',
-      description: 'Structured software-development project tracker designed for personal and team engineering projects.',
-      techStack: 'Frontend -> React.js, TypeScript, Vite\nBackend -> Node.js, Express, Prisma\nDatabase -> PostgreSQL\nDevOps -> Docker, Render, Vercel',
-      status: ProjectStatus.IN_PROGRESS,
-      createdById: leader.id,
-    },
+  let project = await prisma.project.findFirst({
+    where: { name: 'Xion Project Tracker' },
   });
 
-  await prisma.projectMember.createMany({
-    data: [
-      { projectId: project.id, userId: leader.id, role: Role.MEMBER },
-      { projectId: project.id, userId: userDemo.id, role: Role.MEMBER },
-    ],
-  });
-
-  const templates = await prisma.phaseTemplate.findMany({
-    include: { deliverables: true },
-    orderBy: { order: 'asc' },
-  });
-
-  for (const t of templates) {
-    let status = PhaseStatus.NOT_STARTED;
-    if (t.order <= 4) status = PhaseStatus.COMPLETED;
-    else if (t.order === 5) status = PhaseStatus.IN_PROGRESS;
-
-    const projectPhase = await prisma.projectPhase.create({
+  if (!project) {
+    project = await prisma.project.create({
       data: {
-        projectId: project.id,
-        phaseTemplateId: t.id,
-        name: t.name,
-        description: t.description,
-        objective: t.objective,
-        order: t.order,
-        status: status,
-        startedAt: t.order <= 5 ? new Date() : null,
-        completedAt: t.order <= 4 ? new Date() : null,
+        name: 'Xion Project Tracker',
+        description: 'Structured software-development project tracker designed for personal and team engineering projects.',
+        techStack: 'Frontend -> React.js, TypeScript, Vite\nBackend -> Node.js, Express, Prisma\nDatabase -> PostgreSQL\nDevOps -> Docker, Render, Vercel',
+        status: ProjectStatus.IN_PROGRESS,
+        createdById: leader.id,
       },
     });
 
-    for (const d of t.deliverables) {
-      let dStatus = DeliverableStatus.NOT_STARTED;
-      let assignedToId: string | null = null;
-      let completedAt: Date | null = null;
-      let docUrl: string | null = null;
+    await prisma.projectMember.createMany({
+      data: [
+        { projectId: project.id, userId: leader.id, role: Role.MEMBER },
+        { projectId: project.id, userId: userDemo.id, role: Role.MEMBER },
+      ],
+    });
 
-      if (t.order <= 4) {
-        dStatus = DeliverableStatus.COMPLETED;
-        completedAt = new Date();
-        assignedToId = d.order % 2 === 0 ? leader.id : userDemo.id;
-        docUrl = `https://github.com/project/xion/docs/${d.name.toLowerCase().replace(/ /g, '_')}.md`;
-      } else if (t.order === 5) {
-        if (d.order === 1 || d.order === 2) {
+    const templates = await prisma.phaseTemplate.findMany({
+      include: { deliverables: true },
+      orderBy: { order: 'asc' },
+    });
+
+    for (const t of templates) {
+      let status = PhaseStatus.NOT_STARTED;
+      if (t.order <= 4) status = PhaseStatus.COMPLETED;
+      else if (t.order === 5) status = PhaseStatus.IN_PROGRESS;
+
+      const projectPhase = await prisma.projectPhase.create({
+        data: {
+          projectId: project.id,
+          phaseTemplateId: t.id,
+          name: t.name,
+          description: t.description,
+          objective: t.objective,
+          order: t.order,
+          status: status,
+          startedAt: t.order <= 5 ? new Date() : null,
+          completedAt: t.order <= 4 ? new Date() : null,
+        },
+      });
+
+      for (const d of t.deliverables) {
+        let dStatus = DeliverableStatus.NOT_STARTED;
+        let assignedToId: string | null = null;
+        let completedAt: Date | null = null;
+        let docUrl: string | null = null;
+
+        if (t.order <= 4) {
           dStatus = DeliverableStatus.COMPLETED;
           completedAt = new Date();
-          assignedToId = leader.id;
-          docUrl = 'file:///.ai/ARCHITECTURE.md';
-        } else {
-          dStatus = DeliverableStatus.IN_PROGRESS;
-          assignedToId = userDemo.id;
+          assignedToId = d.order % 2 === 0 ? leader.id : userDemo.id;
+          docUrl = `https://github.com/project/xion/docs/${d.name.toLowerCase().replace(/ /g, '_')}.md`;
+        } else if (t.order === 5) {
+          if (d.order === 1 || d.order === 2) {
+            dStatus = DeliverableStatus.COMPLETED;
+            completedAt = new Date();
+            assignedToId = leader.id;
+            docUrl = 'file:///.ai/ARCHITECTURE.md';
+          } else {
+            dStatus = DeliverableStatus.IN_PROGRESS;
+            assignedToId = userDemo.id;
+          }
         }
-      }
 
-      await prisma.projectDeliverable.create({
-        data: {
-          projectPhaseId: projectPhase.id,
-          deliverableTemplateId: d.id,
-          name: d.name,
-          description: d.description,
-          isRequired: d.isRequired,
-          order: d.order,
-          status: dStatus,
-          assignedToId: assignedToId,
-          documentUrl: docUrl,
-          completedAt: completedAt,
-        },
-      });
+        await prisma.projectDeliverable.create({
+          data: {
+            projectPhaseId: projectPhase.id,
+            deliverableTemplateId: d.id,
+            name: d.name,
+            description: d.description,
+            isRequired: d.isRequired,
+            order: d.order,
+            status: dStatus,
+            assignedToId: assignedToId,
+            documentUrl: docUrl,
+            completedAt: completedAt,
+          },
+        });
+      }
     }
+    console.log('✅ Demo Project "Xion Project Tracker" created with full workflow snapshot!');
   }
 
-  console.log('✅ Demo Project "Xion Project Tracker" created with full workflow snapshot!');
-  console.log('🎉 Seeding complete.');
+  console.log('🎉 Seeding complete (existing online data safely preserved).');
 }
 
 main()
