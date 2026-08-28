@@ -270,7 +270,7 @@ router.post('/:id/members', authenticate, requireProjectMember, async (req: Auth
             title: 'Project Join Request',
             message: `${req.user!.name} invited you to join project "${existingProject.name}".`,
             type: 'PROJECT_INVITE',
-            data: JSON.stringify({ projectId: id }),
+            metadata: JSON.stringify({ projectId: id }),
           },
         });
 
