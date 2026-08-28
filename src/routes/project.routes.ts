@@ -154,8 +154,8 @@ router.get('/:id', authenticate, requireProjectMember, async (req: Authenticated
   }
 });
 
-// PUT /api/projects/:id — Update project info
-router.put('/:id', authenticate, requireProjectMember, async (req: AuthenticatedRequest, res: Response, next) => {
+// PUT & PATCH /api/projects/:id — Update project info
+const handleUpdateProject = async (req: AuthenticatedRequest, res: Response, next: any) => {
   try {
     const { id } = req.params;
     const { targetDate, githubUrl, demoUrl, ...rest } = updateProjectSchema.parse(req.body);
@@ -168,13 +168,35 @@ router.put('/:id', authenticate, requireProjectMember, async (req: Authenticated
     const updatedProject = await prisma.project.update({
       where: { id },
       data: updateData,
+      include: {
+        createdBy: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        members: {
+          include: {
+            user: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+          },
+        },
+        phases: {
+          orderBy: { order: 'asc' },
+          include: {
+            deliverables: {
+              orderBy: { order: 'asc' },
+              include: {
+                assignedTo: { select: { id: true, name: true, email: true, avatarUrl: true } },
+              },
+            },
+          },
+        },
+      },
     });
 
     res.json({ project: updatedProject, message: 'Project updated successfully.' });
   } catch (error) {
     next(error);
   }
-});
+};
+
+router.put('/:id', authenticate, requireProjectMember, handleUpdateProject);
+router.patch('/:id', authenticate, requireProjectMember, handleUpdateProject);
 
 // POST /api/projects/:id/members — Add team members to project
 router.post('/:id/members', authenticate, requireProjectMember, async (req: AuthenticatedRequest, res: Response, next) => {
