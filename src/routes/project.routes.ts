@@ -125,6 +125,12 @@ router.get('/:id', authenticate, requireProjectMember, async (req: Authenticated
             user: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
           },
         },
+        invites: {
+          where: { status: 'PENDING' },
+          include: {
+            invitee: { select: { id: true, name: true, email: true, avatarUrl: true } },
+          },
+        },
         phases: {
           orderBy: { order: 'asc' },
           include: {
@@ -175,6 +181,12 @@ const handleUpdateProject = async (req: AuthenticatedRequest, res: Response, nex
             user: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
           },
         },
+        invites: {
+          where: { status: 'PENDING' },
+          include: {
+            invitee: { select: { id: true, name: true, email: true, avatarUrl: true } },
+          },
+        },
         phases: {
           orderBy: { order: 'asc' },
           include: {
@@ -198,7 +210,7 @@ const handleUpdateProject = async (req: AuthenticatedRequest, res: Response, nex
 router.put('/:id', authenticate, requireProjectMember, handleUpdateProject);
 router.patch('/:id', authenticate, requireProjectMember, handleUpdateProject);
 
-// POST /api/projects/:id/members — Add team members to project
+// POST /api/projects/:id/members — Send join invitations to team members
 router.post('/:id/members', authenticate, requireProjectMember, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
@@ -223,35 +235,82 @@ router.post('/:id/members', authenticate, requireProjectMember, async (req: Auth
       return res.status(400).json({ error: 'System Admins cannot be added to project teams.' });
     }
 
+    let sentCount = 0;
     for (const userId of memberIds) {
-      await prisma.projectMember.upsert({
-        where: {
-          projectId_userId: { projectId: id, userId },
-        },
-        create: {
-          projectId: id,
-          userId,
-          role: Role.MEMBER,
-        },
-        update: {},
+      // Check if already a member
+      const isMember = await prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: id, userId } },
       });
+      if (isMember) continue;
+
+      // Upsert invite
+      const existingInvite = await prisma.projectInvite.findUnique({
+        where: { projectId_inviteeId: { projectId: id, inviteeId: userId } },
+      });
+
+      if (!existingInvite || existingInvite.status !== 'PENDING') {
+        await prisma.projectInvite.upsert({
+          where: { projectId_inviteeId: { projectId: id, inviteeId: userId } },
+          create: {
+            projectId: id,
+            inviterId: req.user!.id,
+            inviteeId: userId,
+            status: 'PENDING',
+          },
+          update: {
+            status: 'PENDING',
+            inviterId: req.user!.id,
+          },
+        });
+
+        // Send notification
+        await prisma.notification.create({
+          data: {
+            userId,
+            title: 'Project Join Request',
+            message: `${req.user!.name} invited you to join project "${existingProject.name}".`,
+            type: 'PROJECT_INVITE',
+            data: JSON.stringify({ projectId: id }),
+          },
+        });
+
+        sentCount++;
+      }
     }
 
-    res.json({ message: 'Project team members updated successfully.' });
+    res.json({ message: `Project join requests sent to ${sentCount} user(s). They will join once accepted.` });
   } catch (error) {
     next(error);
   }
 });
 
-// DELETE /api/projects/:id/members/:userId — Remove member from project
+// DELETE /api/projects/:id/members/:userId — Remove member from project (Creator/Admin or Self Leave)
 router.delete('/:id/members/:userId', authenticate, requireProjectMember, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id, userId } = req.params;
+
+    const existingProject = await prisma.project.findUnique({ where: { id } });
+    if (!existingProject) {
+      return res.status(404).json({ error: 'Project not found.' });
+    }
+
+    // Only Project Leader, Admin, or the user themselves can remove membership
+    if (req.user!.role !== Role.ADMIN && existingProject.createdById !== req.user!.id && req.user!.id !== userId) {
+      return res.status(403).json({ error: 'Only the project leader or Admin can remove other team members.' });
+    }
 
     await prisma.projectMember.deleteMany({
       where: {
         projectId: id,
         userId,
+      },
+    });
+
+    // Cancel any pending invite
+    await prisma.projectInvite.deleteMany({
+      where: {
+        projectId: id,
+        inviteeId: userId,
       },
     });
 
@@ -265,7 +324,8 @@ router.delete('/:id/members/:userId', authenticate, requireProjectMember, async 
       data: { assignedToId: null },
     });
 
-    res.json({ message: 'Member removed from project.' });
+    const isSelf = req.user!.id === userId;
+    res.json({ message: isSelf ? 'You have left the project.' : 'Member removed from project.' });
   } catch (error) {
     next(error);
   }

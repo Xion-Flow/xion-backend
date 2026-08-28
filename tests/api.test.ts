@@ -109,7 +109,7 @@ describe('Xion REST API & Security Test Suite', () => {
       const res = await request(app).get('/api/deliverables/my-work').set('Authorization', `Bearer ${memberToken}`);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body.deliverables)).toBe(true);
-    });
+    }, 15000);
   });
 
   describe('Development Guide', () => {

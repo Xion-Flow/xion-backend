@@ -7,7 +7,9 @@ const router = Router();
 const prisma = new PrismaClient();
 
 const sendInviteSchema = z.object({
-  username: z.string().min(1, 'Target username is required'),
+  username: z.string().optional(),
+  userId: z.string().optional(),
+  email: z.string().optional(),
 });
 
 const respondInviteSchema = z.object({
@@ -18,7 +20,7 @@ const respondInviteSchema = z.object({
 router.post('/projects/:id/invites', authenticate, requireProjectMember, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id: projectId } = req.params;
-    const { username } = sendInviteSchema.parse(req.body);
+    const { username, userId, email } = sendInviteSchema.parse(req.body);
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) {
@@ -28,13 +30,18 @@ router.post('/projects/:id/invites', authenticate, requireProjectMember, async (
       return res.status(400).json({ error: 'Cannot send invitations for a personal project.' });
     }
 
-    const cleanUsername = username.replace(/^@/, '').toLowerCase().trim();
-    const invitee = await prisma.user.findUnique({
-      where: { username: cleanUsername },
-    });
+    let invitee = null;
+    if (userId) {
+      invitee = await prisma.user.findUnique({ where: { id: userId } });
+    } else if (email) {
+      invitee = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+    } else if (username) {
+      const cleanUsername = username.replace(/^@/, '').toLowerCase().trim();
+      invitee = await prisma.user.findUnique({ where: { username: cleanUsername } });
+    }
 
     if (!invitee || !invitee.isActive) {
-      return res.status(404).json({ error: `User with username '@${cleanUsername}' was not found.` });
+      return res.status(404).json({ error: 'Selected user was not found.' });
     }
 
     if (invitee.role === 'ADMIN') {
