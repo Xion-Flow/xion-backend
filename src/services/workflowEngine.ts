@@ -49,9 +49,19 @@ export class WorkflowEngine {
       });
 
       // Send join invitations for selected team members if TEAM project
-      const uniqueMemberIds = type === 'PERSONAL' 
-        ? [] 
-        : Array.from(new Set(memberIds.filter((id) => id !== createdById)));
+      let uniqueMemberIds: string[] = [];
+      if (type === 'TEAM' && memberIds.length > 0) {
+        const nonAdminMembers = await tx.user.findMany({
+          where: {
+            id: { in: memberIds },
+            role: { not: Role.ADMIN },
+          },
+          select: { id: true },
+        });
+        uniqueMemberIds = Array.from(
+          new Set(nonAdminMembers.map((u) => u.id).filter((id) => id !== createdById))
+        );
+      }
 
       if (uniqueMemberIds.length > 0) {
         const creator = await tx.user.findUnique({

@@ -65,7 +65,7 @@ router.get('/search', authenticate, async (req: AuthenticatedRequest, res: Respo
     }
 
     const allActiveUsers = await prisma.user.findMany({
-      where: { isActive: true },
+      where: { isActive: true, role: { not: Role.ADMIN } },
       select: {
         id: true,
         email: true,

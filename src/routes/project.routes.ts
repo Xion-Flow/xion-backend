@@ -81,9 +81,13 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response, n
   }
 });
 
-// POST /api/projects — Create project & snapshot workflow (accessible to any authenticated user)
+// POST /api/projects — Create project & snapshot workflow (accessible to non-admin users)
 router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
+    if (req.user!.role === Role.ADMIN) {
+      return res.status(403).json({ error: 'System Admins are responsible for user provisioning and maintenance and cannot create projects.' });
+    }
+
     const { name, description, techStack, type, memberIds } = createProjectSchema.parse(req.body);
 
     const project = await WorkflowEngine.createProjectWithWorkflow({
@@ -189,6 +193,16 @@ router.post('/:id/members', authenticate, requireProjectMember, async (req: Auth
     }
 
     const { memberIds } = addMembersSchema.parse(req.body);
+
+    const adminUsers = await prisma.user.findMany({
+      where: {
+        id: { in: memberIds },
+        role: Role.ADMIN,
+      },
+    });
+    if (adminUsers.length > 0) {
+      return res.status(400).json({ error: 'System Admins cannot be added to project teams.' });
+    }
 
     for (const userId of memberIds) {
       await prisma.projectMember.upsert({

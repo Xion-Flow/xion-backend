@@ -37,6 +37,10 @@ router.post('/projects/:id/invites', authenticate, requireProjectMember, async (
       return res.status(404).json({ error: `User with username '@${cleanUsername}' was not found.` });
     }
 
+    if (invitee.role === 'ADMIN') {
+      return res.status(400).json({ error: 'System Admins cannot be added or invited to projects.' });
+    }
+
     if (invitee.id === req.user!.id) {
       return res.status(400).json({ error: 'You are already the creator/lead of this project.' });
     }

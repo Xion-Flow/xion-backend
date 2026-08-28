@@ -64,6 +64,17 @@ describe('Xion REST API & Security Test Suite', () => {
       const res = await request(app).get('/api/admin/stats').set('Authorization', `Bearer ${memberToken}`);
       expect(res.status).toBe(403);
     });
+
+    it('should prevent ADMIN from creating a project (403 Forbidden)', async () => {
+      const res = await request(app)
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Forbidden Admin Project',
+        });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toContain('System Admins are responsible for user provisioning');
+    });
   });
 
   describe('Project Creation & Workflow Generation Engine', () => {
