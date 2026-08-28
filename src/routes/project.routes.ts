@@ -39,16 +39,13 @@ const addMembersSchema = z.object({
 router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const userId = req.user!.id;
-    const isAdmin = req.user!.role === Role.ADMIN;
 
     const projects = await prisma.project.findMany({
-      where: isAdmin
-        ? {}
-        : {
-            members: {
-              some: { userId },
-            },
-          },
+      where: {
+        members: {
+          some: { userId },
+        },
+      },
       include: {
         createdBy: { select: { id: true, name: true, email: true, avatarUrl: true } },
         members: {
