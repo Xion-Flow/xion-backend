@@ -43,7 +43,7 @@ async function main() {
 
   const admin = await prisma.user.create({
     data: {
-      email: 'admin@xion.local',
+      email: 'admin@xion.in',
       username: 'admin_xion',
       name: 'System Admin',
       passwordHash: adminPasswordHash,
@@ -54,38 +54,27 @@ async function main() {
 
   const leader = await prisma.user.create({
     data: {
-      email: 'leader@xion.local',
+      email: 'ilakkiyanj@xion.in',
       username: 'ilakkiyan_lead',
-      name: 'Ilakkiyan (Lead Architect)',
+      name: 'Ilakkiyan J (Lead Architect)',
       passwordHash: leaderPasswordHash,
       role: Role.MEMBER,
       avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ilakkiyan',
     },
   });
 
-  const alex = await prisma.user.create({
+  const userDemo = await prisma.user.create({
     data: {
-      email: 'alex@xion.local',
-      username: 'alex_dev',
-      name: 'Alex Developer',
+      email: 'user-deomo@xion.in',
+      username: 'user_demo',
+      name: 'Demo User',
       passwordHash: memberPasswordHash,
       role: Role.MEMBER,
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
+      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DemoUser',
     },
   });
 
-  const sam = await prisma.user.create({
-    data: {
-      email: 'sam@xion.local',
-      username: 'sam_design',
-      name: 'Sam Designer',
-      passwordHash: memberPasswordHash,
-      role: Role.MEMBER,
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sam',
-    },
-  });
-
-  console.log('✅ Users seeded: Admin, Team Leader, Alex, Sam.');
+  console.log('✅ Users seeded: admin@xion.in, ilakkiyanj@xion.in, user-deomo@xion.in.');
 
   const phasesData = [
     {
@@ -302,8 +291,7 @@ async function main() {
   await prisma.projectMember.createMany({
     data: [
       { projectId: project.id, userId: leader.id, role: Role.MEMBER },
-      { projectId: project.id, userId: alex.id, role: Role.MEMBER },
-      { projectId: project.id, userId: sam.id, role: Role.MEMBER },
+      { projectId: project.id, userId: userDemo.id, role: Role.MEMBER },
     ],
   });
 
@@ -340,7 +328,7 @@ async function main() {
       if (t.order <= 4) {
         dStatus = DeliverableStatus.COMPLETED;
         completedAt = new Date();
-        assignedToId = d.order % 2 === 0 ? alex.id : sam.id;
+        assignedToId = d.order % 2 === 0 ? leader.id : userDemo.id;
         docUrl = `https://github.com/project/xion/docs/${d.name.toLowerCase().replace(/ /g, '_')}.md`;
       } else if (t.order === 5) {
         if (d.order === 1 || d.order === 2) {
@@ -350,7 +338,7 @@ async function main() {
           docUrl = 'file:///.ai/ARCHITECTURE.md';
         } else {
           dStatus = DeliverableStatus.IN_PROGRESS;
-          assignedToId = alex.id;
+          assignedToId = userDemo.id;
         }
       }
 

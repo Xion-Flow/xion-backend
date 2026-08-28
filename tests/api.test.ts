@@ -11,7 +11,7 @@ describe('Xion REST API & Security Test Suite', () => {
   beforeAll(async () => {
     // 1. Admin Login
     const adminRes = await request(app).post('/api/auth/login').send({
-      email: 'admin@xion.local',
+      email: 'admin@xion.in',
       password: 'AdminPassword123!',
     });
     expect(adminRes.status).toBe(200);
@@ -19,7 +19,7 @@ describe('Xion REST API & Security Test Suite', () => {
 
     // 2. Leader Login
     const leaderRes = await request(app).post('/api/auth/login').send({
-      email: 'leader@xion.local',
+      email: 'ilakkiyanj@xion.in',
       password: 'LeaderPassword123!',
     });
     expect(leaderRes.status).toBe(200);
@@ -27,7 +27,7 @@ describe('Xion REST API & Security Test Suite', () => {
 
     // 3. Member Login
     const memberRes = await request(app).post('/api/auth/login').send({
-      email: 'alex@xion.local',
+      email: 'user-deomo@xion.in',
       password: 'MemberPassword123!',
     });
     expect(memberRes.status).toBe(200);
@@ -37,7 +37,7 @@ describe('Xion REST API & Security Test Suite', () => {
   describe('Authentication & Password Security', () => {
     it('should reject invalid password with 401 Unauthorized', async () => {
       const res = await request(app).post('/api/auth/login').send({
-        email: 'admin@xion.local',
+        email: 'admin@xion.in',
         password: 'WrongPassword!',
       });
       expect(res.status).toBe(401);
@@ -47,7 +47,7 @@ describe('Xion REST API & Security Test Suite', () => {
     it('should return user profile for authenticated GET /api/auth/me', async () => {
       const res = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${leaderToken}`);
       expect(res.status).toBe(200);
-      expect(res.body.user.email).toBe('leader@xion.local');
+      expect(res.body.user.email).toBe('ilakkiyanj@xion.in');
       expect(res.body.user.role).toBe('MEMBER');
     });
   });

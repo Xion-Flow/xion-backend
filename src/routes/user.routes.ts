@@ -176,6 +176,10 @@ router.patch('/:id', authenticate, requireRole(Role.ADMIN), async (req: Authenti
     const { id } = req.params;
     const data = updateUserSchema.parse(req.body);
 
+    if (id === req.user!.id && data.isActive === false) {
+      return res.status(400).json({ error: 'You cannot deactivate your own admin account.' });
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id },
       data,
@@ -191,6 +195,28 @@ router.patch('/:id', authenticate, requireRole(Role.ADMIN), async (req: Authenti
     });
 
     res.json({ user: updatedUser });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/users/:id — Delete user account (Admin only)
+router.delete('/:id', authenticate, requireRole(Role.ADMIN), async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { id } = req.params;
+
+    if (id === req.user!.id) {
+      return res.status(400).json({ error: 'You cannot delete your own admin account.' });
+    }
+
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    await prisma.user.delete({ where: { id } });
+
+    res.json({ message: `User account '${targetUser.name}' (@${targetUser.username}) deleted successfully.` });
   } catch (error) {
     next(error);
   }
