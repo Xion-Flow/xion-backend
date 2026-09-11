@@ -10,6 +10,21 @@ import { Role } from '../types/enums.js';
 const router = Router();
 const prisma = new PrismaClient();
 
+const customDeliverableSchema = z.object({
+  name: z.string().min(1, 'Deliverable name is required'),
+  description: z.string().optional().default(''),
+  isRequired: z.boolean().optional().default(true),
+  order: z.number().optional(),
+});
+
+const customPhaseSchema = z.object({
+  name: z.string().min(1, 'Phase name is required'),
+  description: z.string().optional().default(''),
+  objective: z.string().optional().default(''),
+  order: z.number().optional(),
+  deliverables: z.array(customDeliverableSchema).optional().default([]),
+});
+
 const createProjectSchema = z.object({
   name: z.string().min(2, 'Project name is required'),
   description: z.string().optional(),
@@ -19,6 +34,7 @@ const createProjectSchema = z.object({
   targetDate: z.string().nullable().optional(),
   type: z.enum(['PERSONAL', 'TEAM']).default('TEAM'),
   memberIds: z.array(z.string()).optional(),
+  customPhases: z.array(customPhaseSchema).optional(),
 });
 
 const updateProjectSchema = z.object({
@@ -35,17 +51,26 @@ const addMembersSchema = z.object({
   memberIds: z.array(z.string()).min(1, 'At least one member ID is required'),
 });
 
-// GET /api/projects — Get projects accessible to current user
+// GET /api/projects — Get projects accessible to current user (supports status query filter)
 router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const userId = req.user!.id;
+    const { status, excludeArchived } = req.query;
+
+    const whereClause: any = {
+      members: {
+        some: { userId },
+      },
+    };
+
+    if (status && status !== 'ALL') {
+      whereClause.status = status;
+    } else if (excludeArchived === 'true') {
+      whereClause.status = { not: 'ARCHIVED' };
+    }
 
     const projects = await prisma.project.findMany({
-      where: {
-        members: {
-          some: { userId },
-        },
-      },
+      where: whereClause,
       include: {
         createdBy: { select: { id: true, name: true, email: true, avatarUrl: true } },
         members: {
@@ -78,14 +103,14 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response, n
   }
 });
 
-// POST /api/projects — Create project & snapshot workflow (accessible to non-admin users)
+// POST /api/projects — Create project & snapshot workflow (supports custom JSON phases)
 router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     if (req.user!.role === Role.ADMIN) {
       return res.status(403).json({ error: 'System Admins are responsible for user provisioning and maintenance and cannot create projects.' });
     }
 
-    const { name, description, techStack, type, memberIds } = createProjectSchema.parse(req.body);
+    const { name, description, techStack, type, memberIds, customPhases } = createProjectSchema.parse(req.body);
 
     const project = await WorkflowEngine.createProjectWithWorkflow({
       name,
@@ -94,6 +119,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response, 
       type,
       createdById: req.user!.id,
       memberIds,
+      customPhases,
     });
 
     const progressSummary = await ProgressCalc.calculateProjectProgress(project.id);
@@ -104,7 +130,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response, 
         progress: progressSummary.overallProgressPercentage,
         currentPhase: progressSummary.currentPhase,
       },
-      message: 'Project created and lifecycle workflow generated successfully.',
+      message: customPhases && customPhases.length > 0
+        ? 'Project created with custom imported workflow phases successfully.'
+        : 'Project created and lifecycle workflow generated successfully.',
     });
   } catch (error) {
     next(error);

@@ -17,7 +17,7 @@ const updateDeliverableSchema = z.object({
   dueDate: z.string().nullable().optional(),
 });
 
-// GET /api/deliverables/my-work — Get deliverables assigned to logged-in user
+// GET /api/deliverables/my-work — Get deliverables assigned to logged-in user (excludes archived projects)
 router.get('/my-work', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const userId = req.user!.id;
@@ -27,6 +27,9 @@ router.get('/my-work', authenticate, async (req: AuthenticatedRequest, res: Resp
       assignedToId: userId,
       projectPhase: {
         status: 'IN_PROGRESS',
+        project: {
+          status: { not: 'ARCHIVED' },
+        },
       },
     };
 
@@ -43,7 +46,7 @@ router.get('/my-work', authenticate, async (req: AuthenticatedRequest, res: Resp
       include: {
         projectPhase: {
           include: {
-            project: { select: { id: true, name: true, techStack: true } },
+            project: { select: { id: true, name: true, techStack: true, status: true } },
           },
         },
         assignedTo: { select: { id: true, name: true, email: true, avatarUrl: true } },

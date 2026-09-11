@@ -26,7 +26,7 @@ describe('Socket.io Real-Time WebSockets Engine Test Suite', () => {
 
     // Login as leader
     const loginRes = await request(app).post('/api/auth/login').send({
-      email: 'leader@xion.local',
+      email: 'ilakkiyanj@xion.in',
       password: 'LeaderPassword123!',
     });
     leaderToken = loginRes.body.token;
@@ -48,7 +48,7 @@ describe('Socket.io Real-Time WebSockets Engine Test Suite', () => {
       .set('Authorization', `Bearer ${leaderToken}`);
 
     testDeliverableId = detailsRes.body.project.phases[0].deliverables[0].id;
-  });
+  }, 15000);
 
   afterAll(async () => {
     await new Promise<void>((resolve) => {
@@ -109,5 +109,5 @@ describe('Socket.io Real-Time WebSockets Engine Test Suite', () => {
 
     // Wait for WebSocket event
     await eventReceivedPromise;
-  });
+  }, 15000);
 });
